@@ -34,7 +34,6 @@ This is a working skeleton: small, tested, and end to end. It grew out of a priv
 | Table structure for scans; merged cells and header paths | Not ported |
 | Large documents in page groups | Not built |
 | Accuracy measured on reference pages | Not done; needed before trusting "accepted" |
-| Licence | Not chosen yet. Until one is added, the code is published without permission to reuse it |
 
 ## Install and run
 
@@ -127,3 +126,7 @@ After changing `model.py`, regenerate the schema:
 ```bash
 pdfanchor schema > schemas/document.schema.json
 ```
+
+## Licence
+
+Apache License 2.0. See [LICENSE](LICENSE).
