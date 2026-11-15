@@ -1,7 +1,5 @@
 # pdfanchor
 
-> Working name. It is free on PyPI as of 15 November 2026; rename before the first release if you prefer another.
-
 Give it any PDF. It writes files a language model can read and a vector index can ingest, with every line anchored to its place on the page and a rule-based verdict on whether that line can be trusted.
 
 It is an extraction engine, not only OCR. Character recognition is one stage, used when a page has no usable text layer and as an independent check when it does.
@@ -18,7 +16,7 @@ No language model and no network call is used anywhere in the engine.
 
 ## Status
 
-This is a working skeleton: small, tested, and end to end. It is not yet a replacement for the lab in `tools/pdf_pipeline/`, which holds far more experience. `docs/porting-from-the-lab.md` lists what moves across and in what order.
+This is a working skeleton: small, tested, and end to end. It grew out of a private extraction lab built for Indian tax documents, which still holds far more experience than this code does. `docs/porting-from-the-lab.md` lists what moves across and in what order.
 
 | Area | State |
 | --- | --- |
@@ -36,14 +34,14 @@ This is a working skeleton: small, tested, and end to end. It is not yet a repla
 | Table structure for scans; merged cells and header paths | Not ported |
 | Large documents in page groups | Not built |
 | Accuracy measured on reference pages | Not done; needed before trusting "accepted" |
-| Licence | Not chosen |
+| Licence | Not chosen yet. Until one is added, the code is published without permission to reuse it |
 
 ## Install and run
 
 Python 3.12 or newer. For scanned pages, install the Tesseract program and the language data you need (`eng`, `hin`, …).
 
 ```bash
-pip install -e "packages/pdfanchor[test]"
+pip install -e ".[test]"
 ```
 
 ```bash
@@ -117,25 +115,15 @@ Adding an OCR engine means one class with `name`, `version()` and `read(image, l
 ## Development
 
 ```bash
-python -m pytest packages/pdfanchor
+python -m pytest
 ```
 
 ```bash
-ruff check packages/pdfanchor
+ruff check .
 ```
 
 After changing `model.py`, regenerate the schema:
 
 ```bash
-pdfanchor schema > packages/pdfanchor/schemas/document.schema.json
+pdfanchor schema > schemas/document.schema.json
 ```
-
-## Moving to its own repository
-
-The package has no imports from the rest of this repository. To publish it separately with its history:
-
-```bash
-git subtree split --prefix=packages/pdfanchor -b pdfanchor-export
-```
-
-Push that branch to the new repository, move `.github/workflows/pdfanchor.yml` with it (dropping the path filters and the `working-directory`), and choose a licence. The engines it builds on (Tesseract, EasyOCR, pdfplumber, pypdf) are under permissive licences; confirm each before release.

@@ -16,6 +16,9 @@ dependencies = [
   "Pillow>=11",
 ]
 
+[project.urls]
+Repository = "https://github.com/pTidke/benzeneblack"
+
 [project.optional-dependencies]
 easyocr = ["easyocr>=1.7,<2", "numpy"]
 test = ["pytest>=8", "reportlab>=4", "ruff>=0.6"]

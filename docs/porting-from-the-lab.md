@@ -1,6 +1,6 @@
 # Porting from the lab
 
-`tools/pdf_pipeline/` is the laboratory: about 11,000 lines, 328 tests, and a record of what works on real Indian tax documents. `pdfanchor` is the product that comes out of it. This page says what moves, in what order, and what stays behind.
+The laboratory is `tools/pdf_pipeline/` in the All About Tax application repository (`pTidke/nextjs-allabouttax`): about 11,000 lines, 328 tests, and a record of what works on real Indian tax documents. `pdfanchor` is the product that comes out of it. Module names below refer to that directory. This page says what moves, in what order, and what stays behind.
 
 ## What changes in spirit
 
