@@ -100,6 +100,27 @@ def test_real_tesseract_reads_an_image_only_page(scanned_pdf):
     assert document.engine.components["ocr:tesseract"]
 
 
+def test_pages_are_measured_in_their_visible_area_like_every_pdf_viewer(cropped_pdf):
+    document = convert(cropped_pdf, config=TRUSTING, engines=[])
+    page = document.pages[0]
+    # The crop box, not the whole sheet: 535 x 522 points, from its own top-left.
+    assert (round(page.width, 1), round(page.height, 1)) == (535.3, 521.9)
+    title = by_text(document, "MINISTRY OF FINANCE")
+    assert round(title.box.top, 1) == 40.6
+    body = by_text(document, "This notification shall be effective for the tax years 2026-2027.")
+    assert round(body.box.x0, 1) == 32.0  # drawn at 72 on the sheet, 40 from the crop's left edge
+    # Text outside the visible area is not a review line; the page says it was left out.
+    assert "Hidden text below the visible page area." not in [line.text for line in page.lines]
+    assert [flag.rule for flag in page.flags] == ["page.hidden-text"]
+    assert "characters lie outside the visible page area" in page.flags[0].message
+
+
+@pytest.mark.skipif(not shutil.which("tesseract"), reason="tesseract is not installed")
+def test_the_ocr_cross_check_reads_the_same_area_as_the_text_layer(cropped_pdf):
+    document = convert(cropped_pdf, engines=[TesseractCli()])
+    assert {line.status for line in document.lines()} == {"accepted"}
+
+
 def test_excluded_scripts_stay_as_evidence_and_leave_the_exports(scanned_pdf):
     engine = FakeEngine(
         "one", [("भारत का राजपत्र", (150, 200, 700, 260)), ("The Gazette of India 2026", (150, 360, 900, 420))]

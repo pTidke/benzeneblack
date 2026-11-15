@@ -16,6 +16,20 @@ def render(page, dpi: int, max_pixels: int):
     return page.to_image(resolution=dpi, antialias=True).original.convert("RGB")
 
 
+def visible(page):
+    """The part of the page a PDF viewer shows: the crop box, not the whole sheet.
+
+    Returns the page restricted to that area and the number of characters that lie
+    outside it. Line boxes are then measured from the visible area's top-left, which
+    is where every viewer draws the page from.
+    """
+    crop = tuple(float(v) for v in page.cropbox)
+    if crop == tuple(float(v) for v in page.mediabox):
+        return page, 0
+    inside = page.crop(crop, relative=False, strict=False)
+    return inside, len(page.chars) - len(inside.chars)
+
+
 def dark_fraction(image) -> float:
     thumb = image.convert("L")
     thumb.thumbnail((256, 256))

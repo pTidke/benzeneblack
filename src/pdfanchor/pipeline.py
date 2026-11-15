@@ -126,7 +126,17 @@ def convert(
                 pages.append(_failed(raw, number, "budget.page-limit", "Beyond the page budget; not read."))
                 continue
             try:
+                raw, hidden = native.visible(raw)
                 page = native.read_page(raw, number, config)
+                if hidden:
+                    page.flags.append(
+                        Flag(
+                            rule="page.hidden-text",
+                            severity="review",
+                            message=f"{hidden} characters lie outside the visible page area. They "
+                            "are not shown by PDF viewers and were left out.",
+                        )
+                    )
                 if page.kind == "scanned" or (page.kind == "native" and engines):
                     image = native.render(raw, config.dpi, config.max_render_pixels)
                     image.info["dpi"] = (config.dpi, config.dpi)

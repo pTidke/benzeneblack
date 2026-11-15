@@ -82,3 +82,20 @@ def echo_engine(document, dpi, name="echo", change=None):
         box = (line.box.x0 * scale, line.box.top * scale, line.box.x1 * scale, line.box.bottom * scale)
         lines.append((text, box))
     return FakeEngine(name, lines)
+
+
+@pytest.fixture(scope="session")
+def cropped_pdf(tmp_path_factory):
+    """A Gazette-style page: the visible area is smaller than the sheet and inset from
+    its left edge, and the sheet carries text below it that viewers do not show."""
+    path = tmp_path_factory.mktemp("pdf") / "cropped.pdf"
+    w, h = A4
+    page = canvas.Canvas(str(path), pagesize=A4)
+    page.setCropBox((40, 320, w - 20, h))
+    page.setFont("Times-Bold", 12)
+    page.drawCentredString(w / 2, h - 50, "MINISTRY OF FINANCE")
+    page.setFont("Times-Roman", 11)
+    page.drawString(72, h - 130, "This notification shall be effective for the tax years 2026-2027.")
+    page.drawString(72, 200, "Hidden text below the visible page area.")
+    page.save()
+    return path
