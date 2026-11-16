@@ -23,3 +23,28 @@ jobs:
       - run: pip install -e ".[test]"
       - run: ruff check .
       - run: python -m pytest -q
+  # The second reader for real: CPU PyTorch, EasyOCR and its English models (cached).
+  easyocr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install Tesseract
+        run: sudo apt-get update -q && sudo apt-get install -y -q tesseract-ocr
+      - name: Install CPU PyTorch and EasyOCR
+        run: |
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[test,easyocr]"
+      - uses: actions/cache@v4
+        with:
+          path: ~/easyocr-models
+          key: easyocr-models-en-v1
+      - name: Real Tesseract and EasyOCR on a scan
+        run: |
+          mkdir -p ~/easyocr-models
+          export PDFANCHOR_EASYOCR_MODELS=~/easyocr-models
+          python -m pytest -q -k easyocr
+          pdfanchor engines --easyocr-models ~/easyocr-models

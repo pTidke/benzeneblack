@@ -36,6 +36,11 @@ class Config:
     # out of Markdown and chunks, and never need review. Example: ("Deva",).
     exclude_scripts: tuple[str, ...] = ()
     chunk_chars: int = 1200
+    # How many OCR engines cross-check a page that has a text layer. One independent
+    # reading is enough to confirm text the PDF already carries; the further engines
+    # are for scanned pages, where every word comes from OCR, and running them on
+    # every text page would multiply the time for little gain.
+    native_crosscheck_engines: int = 1
     policy: Policy = field(default_factory=Policy)
 
     def sha256(self) -> str:

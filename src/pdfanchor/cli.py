@@ -31,14 +31,28 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--chunk-chars", type=int, default=1200)
     run.add_argument("--trust-native", action="store_true", help="Accept clean text-layer lines with no OCR cross-check")
     sub.add_parser("schema", help="Print the JSON schema of document.json")
-    sub.add_parser("engines", help="List the OCR engines that can run here")
+    listing = sub.add_parser("engines", help="List the OCR engines that can run here")
+    for command in (run, listing):
+        command.add_argument(
+            "--easyocr-models", help="Folder with EasyOCR's model files (the second reader)"
+        )
+        command.add_argument(
+            "--easyocr-download",
+            action="store_true",
+            help="Fetch missing EasyOCR model files into --easyocr-models",
+        )
     args = parser.parse_args(argv)
+
+    def engines_here(languages=("eng",)):
+        return available(
+            languages, easyocr_models=args.easyocr_models, easyocr_download=args.easyocr_download
+        )
 
     if args.command == "schema":
         print(json.dumps(Document.model_json_schema(), indent=2))
         return 0
     if args.command == "engines":
-        for engine in available():
+        for engine in engines_here():
             print(engine.name, engine.version())
         return 0
     config = Config(
@@ -50,7 +64,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.trust_native:
         config = replace(config, policy=Policy(accept_native_without_crosscheck=True))
     try:
-        document = convert(args.pdf, config=config, engines=None if args.ocr == "auto" else [])
+        engines = engines_here(config.languages) if args.ocr == "auto" else []
+        document = convert(args.pdf, config=config, engines=engines)
     except (ConversionError, EngineUnavailable, OSError) as error:
         print(json.dumps({"error": str(error)}), file=sys.stderr)
         return 1
