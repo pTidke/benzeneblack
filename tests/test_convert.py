@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 from dataclasses import replace
 from pathlib import Path
@@ -183,3 +184,81 @@ def test_command_line_exit_codes_and_files(native_pdf, tmp_path, capsys):
 def test_published_schema_matches_the_models():
     schema = Path(__file__).parents[1] / "schemas" / "document.schema.json"
     assert json.loads(schema.read_text()) == Document.model_json_schema()
+
+
+class BrokenEngine(FakeEngine):
+    def read(self, image, languages):
+        raise RuntimeError("model crashed")
+
+
+def test_a_confirming_reader_that_fails_costs_the_page_its_confirmation_not_its_lines(scanned_pdf):
+    box_a, box_b = (150, 200, 900, 260), (150, 360, 1100, 420)
+    first = FakeEngine("one", [("Circular No. 7 of 2026", box_a), ("The due date is 31st July 2026.", box_b)])
+    document = convert(scanned_pdf, engines=[first, BrokenEngine("two", [])])
+    page = document.pages[0]
+    assert page.kind == "scanned" and len(page.lines) == 2
+    assert [f.rule for f in page.flags] == ["ocr.reader-failed"]
+    assert "ocr:two" in page.flags[0].message
+    # Without its confirmation each line is a single reading again.
+    assert {line.flags[0].rule for line in page.lines} == {"ocr.single-reading"}
+
+
+def test_text_pages_are_cross_checked_by_the_first_engine_only(native_pdf):
+    base = convert(native_pdf, engines=[])
+    config = Config()
+    seen = []
+
+    class Counting(FakeEngine):
+        def read(self, image, languages):
+            seen.append(self.name)
+            return super().read(image, languages)
+
+    agree = echo_engine(base, config.dpi)
+    first, second = Counting("one", agree.lines), Counting("two", agree.lines)
+    document = convert(native_pdf, config=config, engines=[first, second])
+    assert set(seen) == {"one"}, "the second reader is for scanned pages"
+    assert by_text(document, BODY[0]).status == "accepted"
+    assert [r.source for r in by_text(document, BODY[0]).readings] == ["ocr:one"]
+    everyone = convert(
+        native_pdf, config=replace(config, native_crosscheck_engines=2), engines=[first, second]
+    )
+    assert [r.source for r in by_text(everyone, BODY[0]).readings] == ["ocr:one", "ocr:two"]
+
+
+def test_an_engine_whose_models_are_missing_is_left_out_up_front(monkeypatch):
+    from pdfanchor import ocr
+    from pdfanchor.ocr import EngineUnavailable
+    from pdfanchor.ocr.easyocr import EasyOcr
+    from pdfanchor.ocr.tesseract import TesseractCli
+
+    def missing(self, languages):
+        raise EngineUnavailable("no models")
+
+    monkeypatch.setattr(TesseractCli, "version", lambda self: "5")
+    monkeypatch.setattr(EasyOcr, "version", lambda self: "1.7")
+    monkeypatch.setattr(EasyOcr, "prepare", missing)
+    assert [e.name for e in ocr.available()] == ["tesseract"]
+    monkeypatch.setattr(EasyOcr, "prepare", lambda self, languages: None)
+    assert [e.name for e in ocr.available()] == ["tesseract", "easyocr"]
+
+
+@pytest.mark.skipif(
+    not (shutil.which("tesseract") and os.environ.get("PDFANCHOR_EASYOCR_MODELS")),
+    reason="needs tesseract, easyocr and PDFANCHOR_EASYOCR_MODELS",
+)
+def test_real_tesseract_and_easyocr_agree_on_a_clean_scan(scanned_pdf):
+    from pdfanchor.ocr.easyocr import EasyOcr
+
+    second = EasyOcr(os.environ["PDFANCHOR_EASYOCR_MODELS"], download=True)
+    second.prepare(("eng",))
+    document = convert(scanned_pdf, engines=[TesseractCli(), second])
+    page = document.pages[0]
+    assert not page.flags, page.flags
+    for line in page.lines:
+        assert [r.source for r in line.readings] == ["ocr:tesseract", "ocr:easyocr"]
+        assert line.readings[1].text, f"EasyOCR found nothing at {line.text!r}"
+    # A clean, large print scan: both readers agree, so the lines need no person.
+    assert {line.status for line in page.lines} == {"accepted"}, [
+        (line.text, line.readings[1].text, [f.message for f in line.flags]) for line in page.lines
+    ]
+    assert document.engine.components["ocr:easyocr"]

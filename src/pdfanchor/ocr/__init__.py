@@ -29,15 +29,27 @@ class OcrEngine(Protocol):
     def read(self, image, languages: Sequence[str]) -> list[OcrLine]: ...
 
 
-def available() -> list[OcrEngine]:
-    """Engines that can run on this machine, most established first."""
+def available(
+    languages: Sequence[str] = ("eng",),
+    *,
+    easyocr_models: str | None = None,
+    easyocr_download: bool = False,
+) -> list[OcrEngine]:
+    """Engines that can run on this machine, most established first. The first is the
+    one whose lines are kept; the others only confirm or dispute them.
+
+    An engine that needs model files is loaded here, so one whose models are missing
+    is left out now instead of failing on every page."""
     from .easyocr import EasyOcr
     from .tesseract import TesseractCli
 
     found: list[OcrEngine] = []
-    for engine in (TesseractCli(), EasyOcr()):
+    for engine in (TesseractCli(), EasyOcr(easyocr_models, easyocr_download)):
         try:
             engine.version()
+            prepare = getattr(engine, "prepare", None)
+            if prepare:
+                prepare(languages)
         except EngineUnavailable:
             continue
         found.append(engine)

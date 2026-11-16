@@ -27,9 +27,9 @@ This is a working skeleton: small, tested, and end to end. It grew out of a priv
 | Validators: unmapped characters, malformed dates | Working |
 | Decision policy: accepted / flagged / blocked, with rule ids | Working; **thresholds are not calibrated** |
 | Markdown and chunk exporters | Working |
-| EasyOCR as a second reader | Written to the interface, not yet tested |
+| EasyOCR as a second reader on scanned pages | Working, tested with the real models in CI; English only |
 | Process isolation and resource limits per page | Not ported (lab: `runner.py`, `worker.py`) |
-| Pinned, hash-checked OCR weights | Not ported (lab: `ocr_compare.py`) |
+| Pinned, hash-checked OCR weights | Partly: EasyOCR checks its own MD5 sums; versions are not pinned yet |
 | Scan recovery, rotation, show-through | Not ported |
 | Table structure for scans; merged cells and header paths | Not ported |
 | Large documents in page groups | Not built |
@@ -50,6 +50,16 @@ pdfanchor convert notification.pdf --out out/
 ```bash
 pdfanchor convert gazette.pdf --out out/ --lang eng+hin --exclude-script Deva
 ```
+
+A second reader for scanned pages, so lines that both readers agree on need no person:
+
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+pip install -e ".[easyocr]"
+pdfanchor convert scan.pdf --out out/ --easyocr-models ~/easyocr-models --easyocr-download
+```
+
+The models are fetched once into `--easyocr-models`; leave out `--easyocr-download` afterwards to stay offline. If they are missing, EasyOCR is left out at the start and Tesseract reads alone. EasyOCR confirms scanned pages only: a page with a text layer is cross-checked by the first engine (`Config.native_crosscheck_engines`). A confirming reader that fails on a page flags the page (`ocr.reader-failed`) and the first reader's lines stand.
 
 Exit code `0` means every line was accepted by rule, `2` means the files were written and something needs a person, `1` means the file could not be processed.
 

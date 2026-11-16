@@ -61,6 +61,24 @@ def _ocr(engine: OcrEngine, image, config: Config) -> list[tuple]:
     return [(to_points(line, config.dpi), line) for line in engine.read(image, config.languages)]
 
 
+def _others(page: Page, image, engines: Sequence[OcrEngine], config: Config) -> list[tuple[str, list[tuple]]]:
+    """Readings from the confirming engines. One failing on a page costs that page its
+    confirmation, flagged, never the page: the first engine's lines stand."""
+    readings = []
+    for engine in engines:
+        try:
+            readings.append((engine.name, _ocr(engine, image, config)))
+        except Exception as error:
+            page.flags.append(
+                Flag(
+                    rule="ocr.reader-failed",
+                    severity="review",
+                    message=f"ocr:{engine.name} could not read this page ({type(error).__name__}).",
+                )
+            )
+    return readings
+
+
 def _scanned(page: Page, image, engines: Sequence[OcrEngine], config: Config) -> None:
     """Lines come from the first engine. Later engines only add comparison readings."""
     if not engines:
@@ -69,7 +87,7 @@ def _scanned(page: Page, image, engines: Sequence[OcrEngine], config: Config) ->
         )
         return
     first, *rest = engines
-    others = [(engine.name, _ocr(engine, image, config)) for engine in rest]
+    others = _others(page, image, rest, config)
     found = sorted(_ocr(first, image, config), key=lambda pair: (round(pair[0].top / 4), pair[0].x0))
     for order, (box, read) in enumerate(found):
         line = Line(
@@ -118,7 +136,7 @@ def convert(
     data = source if isinstance(source, bytes) else Path(source).read_bytes()
     name = filename or (Path(source).name if not isinstance(source, bytes) else "document.pdf")
     count, flags = _preflight(data, config)
-    engines = available() if engines is None else list(engines)
+    engines = available(config.languages) if engines is None else list(engines)
     pages: list[Page] = []
     with pdfplumber.open(io.BytesIO(data)) as pdf:
         for number, raw in enumerate(pdf.pages, 1):
@@ -137,13 +155,15 @@ def convert(
                             "are not shown by PDF viewers and were left out.",
                         )
                     )
-                if page.kind == "scanned" or (page.kind == "native" and engines):
+                if page.kind == "scanned" or (
+                    page.kind == "native" and engines and config.native_crosscheck_engines
+                ):
                     image = native.render(raw, config.dpi, config.max_render_pixels)
                     image.info["dpi"] = (config.dpi, config.dpi)
                     if page.kind == "scanned":
                         _scanned(page, image, engines, config)
                     else:
-                        readings = [(e.name, _ocr(e, image, config)) for e in engines]
+                        readings = _others(page, image, engines[: config.native_crosscheck_engines], config)
                         for line in page.lines:
                             _attach(line, readings)
                 pages.append(page)
